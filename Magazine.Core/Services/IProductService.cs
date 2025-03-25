@@ -7,18 +7,15 @@ using Magazine.Core.Models;
 
 namespace Magazine.Core.Services
 {
-    public interface IProductService
+    namespace Magazine.Core.Services
     {
-        // Метод для добавления нового элемента
-        Product Add(Product product);
-
-        // Метод для удаления элемента
-        Product Remove(Guid id);
-
-        // Метод для изменения элемента
-        Product Edit(Product product);
-
-        // Метод для поиска элемента по параметрам
-        Product Search(Guid id);
+        public interface IProductService
+        {
+            Product Add(Product product);
+            Product Remove(Guid id);
+            Product Edit(Product product);
+            Product Search(string name, decimal? price);
+            Product GetById(Guid id);
+        }
     }
 }

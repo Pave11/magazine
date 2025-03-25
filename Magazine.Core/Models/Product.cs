@@ -6,27 +6,12 @@ using System.Threading.Tasks;
 
 namespace Magazine.Core.Models
 {
-    public class Product
-    {
-        // Уникальный идентификатор
-        public Guid Id { get; set; }
-
-        // Текстовое описание товара
-        public string Definition { get; set; }
-
-        // Название товара
-        public string Name { get; set; }
-
-        // Стоимость товара
-        public decimal Price { get; set; }
-
-        // Изображение товара (можно использовать строку для хранения пути к изображению)
-        public string Image { get; set; }
-
-        // Конструктор по умолчанию
-        public Product()
+       public class Product
         {
-            Id = Guid.NewGuid(); // Генерация нового уникального идентификатора при создании объекта
+            public Guid Id { get; set; } = Guid.NewGuid(); // Генерация нового ID по умолчанию
+            public string Definition { get; set; } // Текстовое описание товара
+            public string Name { get; set; } // Название товара
+            public decimal Price { get; set; } // Стоимость товара
+            public string Image { get; set; } // Изображение товара
         }
-    }
 }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
+using System.Threading;
 
 namespace Magazine.WebApi.Services
 {
@@ -12,36 +13,35 @@ namespace Magazine.WebApi.Services
     {
         private readonly List<Product> _products = new List<Product>();
         private readonly string _dataBaseFilePath;
+        private readonly Mutex _mutex; // Объявление мьютекса
 
         public ProductService(IConfiguration configuration)
         {
             _dataBaseFilePath = configuration["DataBaseFilePath"];
             LoadProducts();
+            _mutex = new Mutex(); // Инициализация мьютекса
         }
 
         public Product Add(Product product)
         {
-            try
-            {
-                _products.Add(product);
-                SaveProducts();
-                return product;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Ошибка при добавлении продукта", ex);
-            }
+            _mutex.WaitOne();           
+           product.Id = Guid.NewGuid();
+            _products.Add(product); 
+            WriteToFile();
+            _mutex.ReleaseMutex();
+            return product;
         }
 
         public Product Remove(Guid id)
         {
+            _mutex.WaitOne(); // Добавлено ожидание мьютекса
             try
             {
                 var product = _products.FirstOrDefault(p => p.Id == id);
                 if (product != null)
                 {
                     _products.Remove(product);
-                    SaveProducts();
+                    WriteToFile();
                     return product;
                 }
                 return null;
@@ -50,10 +50,15 @@ namespace Magazine.WebApi.Services
             {
                 throw new Exception("Ошибка при удалении продукта", ex);
             }
+            finally
+            {
+                _mutex.ReleaseMutex(); // Обязательно освобождаем мьютекс
+            }
         }
 
         public Product Edit(Product product)
         {
+            _mutex.WaitOne(); // Добавлено ожидание мьютекса
             try
             {
                 var existingProduct = _products.FirstOrDefault(p => p.Id == product.Id);
@@ -63,7 +68,7 @@ namespace Magazine.WebApi.Services
                     existingProduct.Name = product.Name;
                     existingProduct.Price = product.Price;
                     existingProduct.Image = product.Image;
-                    SaveProducts();
+                    WriteToFile();
                     return existingProduct;
                 }
                 return null;
@@ -71,6 +76,10 @@ namespace Magazine.WebApi.Services
             catch (Exception ex)
             {
                 throw new Exception("Ошибка при редактировании продукта", ex);
+            }
+            finally
+            {
+                _mutex.ReleaseMutex(); // Обязательно освобождаем мьютекс
             }
         }
 
@@ -95,7 +104,7 @@ namespace Magazine.WebApi.Services
             }
         }
 
-        private void SaveProducts()
+        private void WriteToFile()
         {
             var lines = _products.Select(SerializeProduct).ToArray();
             File.WriteAllLines(_dataBaseFilePath, lines);

@@ -1,25 +1,34 @@
 ﻿using Magazine.Core.Models;
-using Magazine.Core.Services.Magazine.Core.Services;
+using Magazine.Core.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Configuration;
 
-namespace Magazine.Core.Services
+namespace Magazine.WebApi.Services
 {
     public class ProductService : IProductService
     {
         private readonly List<Product> _products = new List<Product>();
+        private readonly string _dataBaseFilePath;
+
+        public ProductService(IConfiguration configuration)
+        {
+            _dataBaseFilePath = configuration["DataBaseFilePath"];
+            LoadProducts();
+        }
 
         public Product Add(Product product)
         {
             try
             {
                 _products.Add(product);
+                SaveProducts();
                 return product;
             }
             catch (Exception ex)
             {
-                // Обработка исключения
                 throw new Exception("Ошибка при добавлении продукта", ex);
             }
         }
@@ -32,13 +41,13 @@ namespace Magazine.Core.Services
                 if (product != null)
                 {
                     _products.Remove(product);
+                    SaveProducts();
                     return product;
                 }
                 return null;
             }
             catch (Exception ex)
             {
-                // Обработка исключения
                 throw new Exception("Ошибка при удалении продукта", ex);
             }
         }
@@ -54,35 +63,64 @@ namespace Magazine.Core.Services
                     existingProduct.Name = product.Name;
                     existingProduct.Price = product.Price;
                     existingProduct.Image = product.Image;
+                    SaveProducts();
                     return existingProduct;
                 }
                 return null;
             }
             catch (Exception ex)
             {
-                // Обработка исключения
                 throw new Exception("Ошибка при редактировании продукта", ex);
             }
         }
 
-        public Product Search(string name, decimal? price)
+        public Product GetById(Guid id)
         {
-            try
+            return _products.FirstOrDefault(p => p.Id == id);
+        }
+
+        private void LoadProducts()
+        {
+            if (File.Exists(_dataBaseFilePath))
             {
-                return _products.FirstOrDefault(p =>
-                    (string.IsNullOrEmpty(name) || p.Name.Contains(name, StringComparison.OrdinalIgnoreCase)) &&
-                    (!price.HasValue || p.Price == price.Value));
-            }
-            catch (Exception ex)
-            {
-                // Обработка исключения
-                throw new Exception("Ошибка при поиске продукта", ex);
+                var lines = File.ReadAllLines(_dataBaseFilePath);
+                foreach (var line in lines)
+                {
+                    var product = DeserializeProduct(line);
+                    if (product != null)
+                    {
+                        _products.Add(product);
+                    }
+                }
             }
         }
 
-        public Product GetById(Guid id) // Реализация метода GetById
+        private void SaveProducts()
         {
-            return _products.FirstOrDefault(p => p.Id == id);
+            var lines = _products.Select(SerializeProduct).ToArray();
+            File.WriteAllLines(_dataBaseFilePath, lines);
+        }
+
+        private string SerializeProduct(Product product)
+        {
+            return $"{product.Id};{product.Name};{product.Definition};{product.Price};{product.Image}";
+        }
+
+        private Product DeserializeProduct(string line)
+        {
+            var parts = line.Split(';');
+            if (parts.Length == 5 && Guid.TryParse(parts[0], out var id))
+            {
+                return new Product
+                {
+                    Id = id,
+                    Name = parts[1],
+                    Definition = parts[2],
+                    Price = decimal.TryParse(parts[3], out var price) ? price : 0,
+                    Image = parts[4]
+                };
+            }
+            return null;
         }
     }
 }

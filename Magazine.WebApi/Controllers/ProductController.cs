@@ -2,7 +2,6 @@
 using Magazine.Core.Models;
 using Magazine.Core.Services;
 using System;
-using Magazine.Core.Services.Magazine.Core.Services;
 
 namespace Magazine.WebApi.Controllers
 {
@@ -33,7 +32,7 @@ namespace Magazine.WebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message); // 500 Internal Server Error
+                return StatusCode(500, "Ошибка при добавлении продукта: " + ex.Message);
             }
         }
 
@@ -52,7 +51,7 @@ namespace Magazine.WebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message); // 500 Internal Server Error
+                return StatusCode(500, "Ошибка при удалении продукта: " + ex.Message);
             }
         }
 
@@ -76,26 +75,7 @@ namespace Magazine.WebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message); // 500 Internal Server Error
-            }
-        }
-
-        // Метод для поиска продукта
-        [HttpGet("search")]
-        public ActionResult<Product> Search([FromQuery] string name, [FromQuery] decimal? price)
-        {
-            try
-            {
-                var product = _productService.Search(name, price);
-                if (product == null)
-                {
-                    return NotFound("Продукт не найден.");
-                }
-                return Ok(product);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ex.Message); // 500 Internal Server Error
+                return StatusCode(500, "Ошибка при редактировании продукта: " + ex.Message);
             }
         }
 
@@ -114,7 +94,7 @@ namespace Magazine.WebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message); // 500 Internal Server Error
+                return StatusCode(500, "Ошибка при получении продукта: " + ex.Message);
             }
         }
     }

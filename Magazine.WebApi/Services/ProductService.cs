@@ -1,135 +1,72 @@
 ﻿using Magazine.Core.Models;
 using Magazine.Core.Services;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using Microsoft.Extensions.Configuration;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace Magazine.WebApi.Services
 {
     public class ProductService : IProductService
     {
-        private readonly List<Product> _products = new List<Product>();
-        private readonly string _dataBaseFilePath;
-        private readonly Mutex _mutex; // Объявление мьютекса
+        private readonly IDataBase _database;
 
-        public ProductService(IConfiguration configuration)
+        public ProductService(IDataBase database)
         {
-            _dataBaseFilePath = configuration["DataBaseFilePath"];
-            LoadProducts();
-            _mutex = new Mutex(); // Инициализация мьютекса
+            _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
         public Product Add(Product product)
         {
-            _mutex.WaitOne();           
-           product.Id = Guid.NewGuid();
-            _products.Add(product); 
-            WriteToFile();
-            _mutex.ReleaseMutex();
+            // 1. Проверка входных данных
+            if (product == null)
+                throw new ArgumentNullException(nameof(product));
+
+            // 2. Валидация обязательных полей
+            if (string.IsNullOrWhiteSpace(product.Name))
+                throw new ArgumentException("Product name cannot be empty", nameof(product.Name));
+
+            if (product.Price <= 0)
+                throw new ArgumentException("Price must be greater than zero", nameof(product.Price));
+
+            // 3. Генерация нового ID если:
+            // - ID не указан (Guid.Empty)
+            // - или ID указан, но уже существует в БД
+            if (product.Id == Guid.Empty || _database.GetProductById(product.Id) != null)
+            {
+                product.Id = Guid.NewGuid();
+            }
+
+            // 4. Добавление в базу данных
+            _database.AddProduct(product);
+
             return product;
         }
 
         public Product Remove(Guid id)
         {
-            _mutex.WaitOne(); // Добавлено ожидание мьютекса
-            try
-            {
-                var product = _products.FirstOrDefault(p => p.Id == id);
-                if (product != null)
-                {
-                    _products.Remove(product);
-                    WriteToFile();
-                    return product;
-                }
+            var product = _database.GetProductById(id);
+            if (product == null)
                 return null;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Ошибка при удалении продукта", ex);
-            }
-            finally
-            {
-                _mutex.ReleaseMutex(); // Обязательно освобождаем мьютекс
-            }
+
+            _database.DeleteProduct(id);
+            return product;
         }
 
         public Product Edit(Product product)
         {
-            _mutex.WaitOne(); // Добавлено ожидание мьютекса
-            try
-            {
-                var existingProduct = _products.FirstOrDefault(p => p.Id == product.Id);
-                if (existingProduct != null)
-                {
-                    existingProduct.Definition = product.Definition;
-                    existingProduct.Name = product.Name;
-                    existingProduct.Price = product.Price;
-                    existingProduct.Image = product.Image;
-                    WriteToFile();
-                    return existingProduct;
-                }
+            if (product == null)
+                throw new ArgumentNullException(nameof(product));
+
+            var existingProduct = _database.GetProductById(product.Id);
+            if (existingProduct == null)
                 return null;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Ошибка при редактировании продукта", ex);
-            }
-            finally
-            {
-                _mutex.ReleaseMutex(); // Обязательно освобождаем мьютекс
-            }
+
+            _database.UpdateProduct(product);
+            return product;
         }
 
         public Product GetById(Guid id)
         {
-            return _products.FirstOrDefault(p => p.Id == id);
-        }
-
-        private void LoadProducts()
-        {
-            if (File.Exists(_dataBaseFilePath))
-            {
-                var lines = File.ReadAllLines(_dataBaseFilePath);
-                foreach (var line in lines)
-                {
-                    var product = DeserializeProduct(line);
-                    if (product != null)
-                    {
-                        _products.Add(product);
-                    }
-                }
-            }
-        }
-
-        private void WriteToFile()
-        {
-            var lines = _products.Select(SerializeProduct).ToArray();
-            File.WriteAllLines(_dataBaseFilePath, lines);
-        }
-
-        private string SerializeProduct(Product product)
-        {
-            return $"{product.Id};{product.Name};{product.Definition};{product.Price};{product.Image}";
-        }
-
-        private Product DeserializeProduct(string line)
-        {
-            var parts = line.Split(';');
-            if (parts.Length == 5 && Guid.TryParse(parts[0], out var id))
-            {
-                return new Product
-                {
-                    Id = id,
-                    Name = parts[1],
-                    Definition = parts[2],
-                    Price = decimal.TryParse(parts[3], out var price) ? price : 0,
-                    Image = parts[4]
-                };
-            }
-            return null;
+            return _database.GetProductById(id);
         }
     }
 }

@@ -7,10 +7,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Добавление конфигурации из appsettings.json
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
-// Добавление сервисов в контейнер
-builder.Services.AddSingleton<IProductService, ProductService>();
-builder.Services.AddControllers();
+// +++ Регистрация DataBase с подключением к SQLite
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                      ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddSingleton<IDataBase>(new DataBase(connectionString));
 
+// +++ Регистрация ProductService (зависит от IDataBase)
+builder.Services.AddSingleton<IProductService, ProductService>();
+
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

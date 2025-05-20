@@ -5,7 +5,7 @@ using Magazine.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using System;
 
-namespace Magazine.Tests.Controllers
+namespace Magazine.Tests.Unit.Controllers
 {
     [TestFixture]
     public class ProductControllerStubTests

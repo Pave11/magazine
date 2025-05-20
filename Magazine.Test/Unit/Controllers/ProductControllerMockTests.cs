@@ -6,7 +6,7 @@ using Magazine.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using System;
 
-namespace Magazine.Tests
+namespace Magazine.Tests.Unit.Controllers
 {
     [TestFixture]
     public class ProductControllerMockTests

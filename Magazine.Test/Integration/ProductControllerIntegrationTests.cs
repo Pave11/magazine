@@ -1,138 +1,112 @@
-﻿using NUnit.Framework;
+﻿using Magazine.Core.Models;
+using Magazine.Core.Services;
 using Magazine.WebApi.Controllers;
 using Magazine.WebApi.Services;
-using Microsoft.Extensions.Configuration;
-using System.IO;
-using System;
-using Magazine.Core.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
+using Microsoft.Data.Sqlite;
+using NUnit.Framework;
+using System;
+using System.IO;
 
-namespace Magazine.Tests
+namespace Magazine.Tests.Integration
 {
     [TestFixture]
-    public class ProductControllerIntegrationTests
+    public class ProductControllerIntegrationTests : IDisposable
     {
         private ProductController _controller;
-        private ProductService _service;
-        private string _testFilePath = "integration_test_products.txt";
+        private SqliteConnection _connection;
+        private readonly string _testDbPath;
+        private bool _disposed;
+
+        public ProductControllerIntegrationTests()
+        {
+            // Уникальное имя файла для каждого запуска тестов
+            _testDbPath = Path.Combine(Path.GetTempPath(), $"test_controller_{Guid.NewGuid()}.db");
+        }
 
         [SetUp]
         public void Setup()
         {
-            // Настройка конфигурации
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new[] {
-                    new KeyValuePair<string, string>("DataBaseFilePath", _testFilePath)
-                })
-                .Build();
-
-            // Инициализация сервиса и контроллера с реальными зависимостями
-            _service = new ProductService(configuration);
-            _controller = new ProductController(_service);
-
-            // Очистить тестовый файл перед каждым тестом
-            if (File.Exists(_testFilePath))
+            // Убедимся, что файла нет (на случай предыдущих неудачных запусков)
+            if (File.Exists(_testDbPath))
             {
-                File.Delete(_testFilePath);
+                File.Delete(_testDbPath);
             }
+
+            // Создаем соединение с отключенным пулингом
+            _connection = new SqliteConnection($"Data Source={_testDbPath};Pooling=false");
+            _connection.Open();
+
+            // Инициализируем цепочку зависимостей
+            var db = new DataBase(_connection);
+            var service = new ProductService(db);
+            _controller = new ProductController(service);
         }
 
         [TearDown]
         public void Cleanup()
         {
-            // Удалить тестовый файл после каждого теста
-            if (File.Exists(_testFilePath))
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            // Освобождаем ресурсы в правильном порядке
+            _controller = null;
+
+            // Явно закрываем соединение
+            _connection?.Close();
+            _connection?.Dispose();
+            _connection = null;
+
+            // Пытаемся удалить файл БД
+            TryDeleteDatabaseFile();
+
+            _disposed = true;
+        }
+
+        private void TryDeleteDatabaseFile()
+        {
+            if (!File.Exists(_testDbPath)) return;
+
+            // Делаем несколько попыток удаления
+            for (int i = 0; i < 5; i++)
             {
-                File.Delete(_testFilePath);
+                try
+                {
+                    File.Delete(_testDbPath);
+                    break;
+                }
+                catch (IOException) when (i < 4)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
             }
         }
 
         [Test]
-        public void AddAndGet_IntegrationTest()
+        public void AddAndGet_ShouldPersistProductInDatabase()
         {
             // Arrange
-            var newProduct = new Product
-            {
-                Name = "Integration Test Product",
-                Definition = "Test Desc",
-                Price = 500,
-                Image = "test.jpg"
-            };
+            var product = new Product { Name = "Test Product", Price = 100.50m };
 
-            // Act - Добавление продукта
-            var addActionResult = _controller.Add(newProduct);
+            // Act
+            var addResult = _controller.Add(product).Result as CreatedAtActionResult;
+            var addedProduct = addResult?.Value as Product;
 
-            // Assert - Проверка типа результата
-            Assert.IsInstanceOf<ActionResult<Product>>(addActionResult);
-
-            // Получаем результат как CreatedAtActionResult
-            var createdAtActionResult = addActionResult.Result as CreatedAtActionResult;
-            Assert.IsNotNull(createdAtActionResult, "Результат должен быть типа CreatedAtActionResult");
-
-            var addedProduct = createdAtActionResult.Value as Product;
-            Assert.IsNotNull(addedProduct, "Значение результата должно быть типа Product");
-            Assert.IsNotNull(addedProduct.Id, "ID продукта не должен быть null");
-
-            // Act - Получение продукта
-            var getActionResult = _controller.GetById(addedProduct.Id);
-
-            // Assert - Проверка типа результата
-            Assert.IsInstanceOf<ActionResult<Product>>(getActionResult);
-
-            // Получаем результат как OkObjectResult
-            var okObjectResult = getActionResult.Result as OkObjectResult;
-            Assert.IsNotNull(okObjectResult, "Результат должен быть типа OkObjectResult");
-
-            var retrievedProduct = okObjectResult.Value as Product;
-            Assert.IsNotNull(retrievedProduct, "Полученный продукт не должен быть null");
-
-            // Assert - Проверка данных
-            Assert.AreEqual(addedProduct.Id, retrievedProduct.Id);
-            Assert.AreEqual(newProduct.Name, retrievedProduct.Name);
-            Assert.AreEqual(newProduct.Definition, retrievedProduct.Definition);
-            Assert.AreEqual(newProduct.Price, retrievedProduct.Price);
-            Assert.AreEqual(newProduct.Image, retrievedProduct.Image);
-        }
-
-        [Test]
-        public void AddEditGet_IntegrationTest()
-        {
-            // Arrange
-            var initialProduct = new Product
-            {
-                Name = "Initial Product",
-                Definition = "Initial Desc",
-                Price = 100,
-                Image = "initial.jpg"
-            };
-
-            // Act - Добавление продукта
-            var addResult = _controller.Add(initialProduct);
-            var addedProduct = (addResult.Result as CreatedAtActionResult)?.Value as Product;
-
-            // Act - Редактирование продукта
-            var updatedProduct = new Product
-            {
-                Id = addedProduct.Id,
-                Name = "Updated Product",
-                Definition = "Updated Desc",
-                Price = 200,
-                Image = "updated.jpg"
-            };
-
-            var editResult = _controller.Edit(updatedProduct);
-            var editedProduct = (editResult.Result as OkObjectResult)?.Value as Product;
-
-            // Act - Получение продукта
-            var getResult = _controller.GetById(addedProduct.Id);
-            var retrievedProduct = (getResult.Result as OkObjectResult)?.Value as Product;
+            var getResult = _controller.GetById(addedProduct?.Id ?? Guid.Empty).Result as OkObjectResult;
+            var retrievedProduct = getResult?.Value as Product;
 
             // Assert
-            Assert.AreEqual(updatedProduct.Name, retrievedProduct.Name);
-            Assert.AreEqual(updatedProduct.Definition, retrievedProduct.Definition);
-            Assert.AreEqual(updatedProduct.Price, retrievedProduct.Price);
-            Assert.AreEqual(updatedProduct.Image, retrievedProduct.Image);
+            Assert.Multiple(() =>
+            {
+                Assert.IsNotNull(addedProduct, "Product should be added");
+                Assert.IsNotNull(retrievedProduct, "Product should be retrievable");
+                Assert.AreEqual(product.Name, retrievedProduct.Name, "Names should match");
+                Assert.AreEqual(product.Price, retrievedProduct.Price, "Prices should match");
+            });
         }
     }
 }

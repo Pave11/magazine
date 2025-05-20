@@ -1,4 +1,0 @@
-b64c5d36-5584-4286-a02d-fce2abe16333;tovar;opisanie;100;tovar.png
-41634ce6-2994-4b83-bada-2470aa3bd500;tovar2;opisanie2;1000;tovar.png
-9ad02c08-e10a-4e1a-a7ae-9ee7b2a5399c;tovar2;opisanie2;1000;tovar.png
-334c0e9d-8e42-41a0-a65e-6bde5dbd0c0f;tovar3;opisanie2;10000;tovar.png
